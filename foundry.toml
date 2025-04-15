@@ -10,6 +10,12 @@ runs = 256
 depth = 32
 fail_on_revert = true
 
+[fuzz]
+runs = 256
+depth = 32
+fail_on_revert = true
+seed = "0x1"
+
 [fmt]
 bracket_spacing = true
 int_types = "long"

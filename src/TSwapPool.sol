@@ -294,7 +294,7 @@ contract TSwapPool is ERC20 {
             ((inputReserves * outputAmount) * 10000) /
             ((outputReserves - outputAmount) * 997);
     }
-
+    // @audit - function not used internally can be marked external to save gas.
     function swapExactInput(
         IERC20 inputToken,
         uint256 inputAmount,
