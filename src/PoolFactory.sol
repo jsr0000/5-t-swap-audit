@@ -19,6 +19,7 @@ import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 
 contract PoolFactory {
     error PoolFactory__PoolAlreadyExists(address tokenAddress);
+    // @audit-informational - this error is never used and can be removed.
     error PoolFactory__PoolDoesNotExist(address tokenAddress);
 
     /*//////////////////////////////////////////////////////////////
@@ -49,6 +50,7 @@ contract PoolFactory {
             revert PoolFactory__PoolAlreadyExists(tokenAddress);
         }
         string memory liquidityTokenName = string.concat("T-Swap ", IERC20(tokenAddress).name());
+        // @audit-informational - should use .symbol() instead of .name().
         string memory liquidityTokenSymbol = string.concat("ts", IERC20(tokenAddress).name());
         TSwapPool tPool = new TSwapPool(tokenAddress, i_wethToken, liquidityTokenName, liquidityTokenSymbol);
         s_pools[tokenAddress] = address(tPool);

@@ -12,7 +12,7 @@
  * \-/|\-/|\-/|\-/|\-/|\-/|\-/|\-/|\-/|\-/
  */
 // SPDX-License-Identifier: GNU General Public License v3.0
-pragma solidity 0.8.20;
+pragma solidity 0.8.20; // @audit - this compiler version may not be compatible with chains other than mainnet
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -42,7 +42,7 @@ contract TSwapPool is ERC20 {
     //////////////////////////////////////////////////////////////*/
     IERC20 private immutable i_wethToken;
     IERC20 private immutable i_poolToken;
-    uint256 private constant MINIMUM_WETH_LIQUIDITY = 1_000_000_000;
+    uint256 private constant MINIMUM_WETH_LIQUIDITY = 1_000_000_000; // @audit - large literal values can be replaced with scientific notation eg 1e9
     uint256 private swap_count = 0;
     uint256 private constant SWAP_COUNT_MAX = 10;
 
@@ -93,6 +93,7 @@ contract TSwapPool is ERC20 {
         string memory liquidityTokenName,
         string memory liquidityTokenSymbol
     ) ERC20(liquidityTokenName, liquidityTokenSymbol) {
+        // @audit - missing zero address checks
         i_wethToken = IERC20(wethToken);
         i_poolToken = IERC20(poolToken);
     }
@@ -114,6 +115,7 @@ contract TSwapPool is ERC20 {
         uint256 wethToDeposit,
         uint256 minimumLiquidityTokensToMint,
         uint256 maximumPoolTokensToDeposit,
+        // @audit-high - unused parameter may lead to unsupported trust in the protocol functionality. Deposits expected to fail may succeed.
         uint64 deadline
     )
         external
@@ -121,6 +123,7 @@ contract TSwapPool is ERC20 {
         returns (uint256 liquidityTokensToMint)
     {
         if (wethToDeposit < MINIMUM_WETH_LIQUIDITY) {
+            // @audit-informational - MINIMUM_WETH_LIQUIDITY is a constant so emmitting this is unnecessary.
             revert TSwapPool__WethDepositAmountTooLow(
                 MINIMUM_WETH_LIQUIDITY,
                 wethToDeposit
@@ -128,6 +131,7 @@ contract TSwapPool is ERC20 {
         }
         if (totalLiquidityTokenSupply() > 0) {
             uint256 wethReserves = i_wethToken.balanceOf(address(this));
+            // @audit-informational - line unused, can be removed to save gas.
             uint256 poolTokenReserves = i_poolToken.balanceOf(address(this));
             // Our invariant says weth, poolTokens, and liquidity tokens must always have the same ratio after the
             // initial deposit
@@ -179,6 +183,7 @@ contract TSwapPool is ERC20 {
                 maximumPoolTokensToDeposit,
                 wethToDeposit
             );
+            // @audit-informational - not a state variable, but would be better to follow CEI.
             liquidityTokensToMint = wethToDeposit;
         }
     }
@@ -196,6 +201,7 @@ contract TSwapPool is ERC20 {
         emit LiquidityAdded(msg.sender, poolTokensToDeposit, wethToDeposit);
 
         // Interactions
+        // @audit-low - ordering of event emissions incorrect.
         i_wethToken.safeTransferFrom(msg.sender, address(this), wethToDeposit);
         i_poolToken.safeTransferFrom(
             msg.sender,
@@ -273,9 +279,9 @@ contract TSwapPool is ERC20 {
         // totalPoolTokensOfPool) + (wethToDeposit * poolTokensToDeposit) = k
         // (totalWethOfPool * totalPoolTokensOfPool) + (wethToDeposit * totalPoolTokensOfPool) = k - (totalWethOfPool *
         // poolTokensToDeposit) - (wethToDeposit * poolTokensToDeposit)
-        uint256 inputAmountMinusFee = inputAmount * 997;
+        uint256 inputAmountMinusFee = inputAmount * 997; // @audit - define and use constant variables instead of using literal values
         uint256 numerator = inputAmountMinusFee * outputReserves;
-        uint256 denominator = (inputReserves * 1000) + inputAmountMinusFee;
+        uint256 denominator = (inputReserves * 1000) + inputAmountMinusFee; // @audit - define and use constant variables instead of using literal values
         return numerator / denominator;
     }
 
@@ -290,11 +296,13 @@ contract TSwapPool is ERC20 {
         revertIfZero(outputReserves)
         returns (uint256 inputAmount)
     {
+        // @audit-high - erronous fee calculation resulting in 90.03% fees.
         return
             ((inputReserves * outputAmount) * 10000) /
-            ((outputReserves - outputAmount) * 997);
+            ((outputReserves - outputAmount) * 997); // @audit - define and use constant variables instead of using literal values
     }
-    // @audit - function not used internally can be marked external to save gas.
+    // @audit-informational - wheres the natspec?
+    // @audit-informational - function not used internally can be marked external to save gas.
     function swapExactInput(
         IERC20 inputToken,
         uint256 inputAmount,
@@ -305,7 +313,10 @@ contract TSwapPool is ERC20 {
         public
         revertIfZero(inputAmount)
         revertIfDeadlinePassed(deadline)
-        returns (uint256 output)
+        returns (
+            // @audit-low - return value not updated/used.
+            uint256 output
+        )
     {
         uint256 inputReserves = inputToken.balanceOf(address(this));
         uint256 outputReserves = outputToken.balanceOf(address(this));
@@ -334,6 +345,7 @@ contract TSwapPool is ERC20 {
      * @param outputToken ERC20 token to send to caller
      * @param outputAmount The exact amount of tokens to send to caller
      */
+    // @audit-high - Needs slippage protection - maxInputAmount
     function swapExactOutput(
         IERC20 inputToken,
         IERC20 outputToken,
@@ -365,6 +377,7 @@ contract TSwapPool is ERC20 {
     function sellPoolTokens(
         uint256 poolTokenAmount
     ) external returns (uint256 wethAmount) {
+        // @audit - Incorrect parameter being passed for swapExactOutput function - poolTokenAmount
         return
             swapExactOutput(
                 i_poolToken,
@@ -395,7 +408,7 @@ contract TSwapPool is ERC20 {
         ) {
             revert TSwapPool__InvalidToken();
         }
-
+        // @audit-high - breaks protocol invariant.
         swap_count++;
         if (swap_count >= SWAP_COUNT_MAX) {
             swap_count = 0;
@@ -432,6 +445,7 @@ contract TSwapPool is ERC20 {
     }
 
     /// @notice a more verbose way of getting the total supply of liquidity tokens
+    // @audit-informational - function not used internally can be marked external to save gas.
     function totalLiquidityTokenSupply() public view returns (uint256) {
         return totalSupply();
     }
@@ -451,7 +465,7 @@ contract TSwapPool is ERC20 {
     function getPriceOfOneWethInPoolTokens() external view returns (uint256) {
         return
             getOutputAmountBasedOnInput(
-                1e18,
+                1e18, // @audit - define and use constant variables instead of using literal values
                 i_wethToken.balanceOf(address(this)),
                 i_poolToken.balanceOf(address(this))
             );
@@ -460,7 +474,7 @@ contract TSwapPool is ERC20 {
     function getPriceOfOnePoolTokenInWeth() external view returns (uint256) {
         return
             getOutputAmountBasedOnInput(
-                1e18,
+                1e18, // @audit - define and use constant variables instead of using literal values
                 i_poolToken.balanceOf(address(this)),
                 i_wethToken.balanceOf(address(this))
             );
